@@ -23,11 +23,11 @@
     "README.md"
   ],
   "bugs": {
-    "url": "https://github.com/kotorijs/kotori/issues"
+    "url": "https://github.com/biyuehu/fluoro/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kotorijs/kotori.git"
+    "url": "git+https://github.com/biyuehu/fluoro.git"
   },
   "homepage": "https://kotori.js.org"
 }
