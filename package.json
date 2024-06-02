@@ -1,0 +1,33 @@
+{
+  "name": "fluoro",
+  "version": "1.0.2",
+  "description": "A Meta-Framework",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "license": "GPL-3.0",
+  "author": "Hotaru <biyuehuya@gmail.com>",
+  "keywords": [
+    "meta-framework",
+    "framework",
+    "meta",
+    "meta-programming",
+    "aspect-oriented-programming",
+    "dependency-injection",
+    "inversion-of-control"
+  ],
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "bugs": {
+    "url": "https://github.com/kotorijs/kotori/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kotorijs/kotori.git"
+  },
+  "homepage": "https://kotori.js.org"
+}
