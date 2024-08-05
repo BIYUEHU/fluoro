@@ -104,10 +104,7 @@ export class Modules {
   }
 
   public load(instance: EventDataModule['instance']) {
-    const ctx = this.ctx.extends(
-      {},
-      !this.ctx.identity && typeof instance === 'object' ? instance.name : this.ctx.identity
-    )
+    const ctx = this.ctx.extends((typeof instance === 'object' ? instance.name : undefined) ?? this.ctx.identity)
 
     const injected = (arr: string[]) => {
       for (const identity of arr) {

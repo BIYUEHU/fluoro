@@ -6,7 +6,7 @@
  * @Copyright 2024 Hotaru. All rights reserved.
  * @License GPL-3.0
  * @Link https://github.com/kotorijs/kotori
- * @Date 2024/8/1 21:44:10
+ * @Date 2024/8/4 21:33:20
  */
 
 "use strict";
@@ -46,79 +46,120 @@ module.exports = __toCommonJS(context_exports);
 var import_tokens = __toESM(require("./tokens"));
 var import_events = require("./events");
 var import_modules = __toESM(require("./modules"));
-const handler = (value, ctx) => {
-  if (!value || typeof value !== "object" || !(value.ctx instanceof Context)) return value;
+const DEFAULT_EXTENDS_NAME = "sub";
+function isExistsContext(value) {
+  return value instanceof Object && "ctx" in value && value.ctx instanceof Context;
+}
+function mountObject(value, ctx) {
+  if (!isExistsContext(value)) return value;
   return new Proxy(value, {
     get(target, prop, receiver) {
       if (prop === "ctx") return ctx;
       return Reflect.get(target, prop, receiver);
     }
   });
-};
-const DEFAULT_EXTENDS_NAME = "sub";
+}
 class Context {
+  /** Context container */
   [import_tokens.default.container] = /* @__PURE__ */ new Map();
-  [import_tokens.default.table] = /* @__PURE__ */ new Map();
-  root;
-  parent = null;
-  constructor(root) {
-    this.root = root || this;
-    this.provide("events", root ? root.get("events") : new import_events.Events());
+  /** Context container */
+  [import_tokens.default.tracker] = /* @__PURE__ */ new Map();
+  /** Context record */
+  [import_tokens.default.record] = /* @__PURE__ */ new Set();
+  /** Context identity */
+  identity;
+  /** Context root */
+  root = this;
+  /** Context parent */
+  parent;
+  constructor(parent, identity) {
+    this.root = parent ? parent.root : this;
+    this.parent = parent;
+    this.identity = identity;
+    if (this.parent) {
+      Object.setPrototypeOf(this, this.parent);
+      this[import_tokens.default.container] = new Map(this.parent[import_tokens.default.container]);
+      this[import_tokens.default.tracker] = new Map(this.parent[import_tokens.default.tracker]);
+    }
+    for (const [key, serviceName] of this[import_tokens.default.tracker]) {
+      if (serviceName !== void 0) {
+        const service = this.get(serviceName);
+        if (isExistsContext(service)) this.mixin(serviceName, [key], true);
+        continue;
+      }
+      if (isExistsContext(this[key])) this.inject(key, true);
+    }
+    for (const obj of this[import_tokens.default.container].values()) mountObject(obj, this);
+    this.provide("events", parent ? parent.get("events") : new import_events.Events());
     this.mixin("events", ["emit", "on", "once", "off", "offAll"]);
     this.provide("modules", new import_modules.default(this));
     this.mixin("modules", ["load", "unload", "service"]);
   }
+  /**
+   * Get context property.
+   *
+   * @param prop - Context property
+   * @returns Context property
+   */
   get(prop) {
-    return this[import_tokens.default.container].get(prop);
+    const value = this[import_tokens.default.container].get(prop);
+    return value ? mountObject(value, this) : value;
   }
-  inject(prop) {
-    if (this[prop] && !this[import_tokens.default.container].has(prop)) return;
-    this[prop] = this.get(prop);
+  inject(prop, force = false) {
+    if (!force && (this[prop] || !this[import_tokens.default.container].has(prop))) return false;
+    this[prop] = mountObject(this.get(prop), this);
+    this[import_tokens.default.tracker].set(prop, void 0);
+    return true;
   }
   provide(prop, value) {
-    if (this[import_tokens.default.container].has(prop)) return;
+    if (this[import_tokens.default.container].has(prop)) return false;
     this[import_tokens.default.container].set(prop, value);
+    return true;
   }
-  mixin(prop, keys) {
-    this[import_tokens.default.table].set(prop, keys);
+  mixin(prop, keys, force = false) {
     const instance = this.get(prop);
-    if (!instance) return;
-    this[import_tokens.default.table].set(prop, keys);
+    if (!instance) return false;
+    let succeed = true;
     for (const key of keys) {
-      if (this[key] || !instance[key]) continue;
-      this[key] = instance[key];
-      if (typeof this[key] === "function") {
-        this[key] = this[key]?.bind(instance);
+      if (!force && (this[key] || !instance[key])) {
+        succeed = false;
+        continue;
       }
+      this[key] = mountObject(
+        typeof instance[key] === "function" ? instance[key]?.bind(instance) : instance[key],
+        this
+      );
+      this[import_tokens.default.tracker].set(key, prop);
     }
+    return succeed;
   }
-  extends(meta, identity) {
-    const metaHandle = meta ?? {};
-    for (const key of Object.keys(metaHandle)) if (typeof this[key] === "function") delete metaHandle[key];
-    const ctx = new Proxy(new Context(this.root), {
-      get: (target, prop) => {
-        if (prop === "identity") return identity ?? this.identity ?? DEFAULT_EXTENDS_NAME;
-        if (prop === "parent") return this;
-        if (target[prop]) return handler(target[prop], ctx);
-        let value;
-        this[import_tokens.default.table].forEach((keys, key) => {
-          if (value || typeof prop === "string" && !keys.includes(prop)) return;
-          const instance = ctx[import_tokens.default.container].get(key);
-          if (!instance) return;
-          value = instance[prop];
-          if (typeof value === "function") value = value.bind(instance);
-        });
-        if (value !== void 0) return value;
-        if (metaHandle[prop]) return handler(metaHandle[prop], ctx);
-        return handler(this[prop], ctx);
-      }
-    });
-    this[import_tokens.default.table].forEach((value, key) => ctx[import_tokens.default.table].set(key, value));
-    this[import_tokens.default.container].forEach((value, key) => {
-      if (!value.ctx) return ctx[import_tokens.default.container].set(key, value);
-      return ctx[import_tokens.default.container].set(key, handler(value, ctx));
-    });
-    return ctx;
+  extends(_, arg2) {
+    const identity = (typeof _ === "string" || typeof _ === "symbol" ? _ : arg2) ?? this.identity ?? DEFAULT_EXTENDS_NAME;
+    const childCtx = new Context(this, identity);
+    this[import_tokens.default.record].add(childCtx);
+    return childCtx;
+  }
+  /**
+   * Find context by identity.
+   *
+   * @param identity - Context identity
+   * @param mode - Search mode
+   * @returns Context
+   */
+  find(identity, mode = "both") {
+    if (identity === this.identity) return this;
+    if (mode === "down" || mode === "both") {
+      const result = Array.from(this[import_tokens.default.record]).find(
+        (ctx) => identity === ctx.identity || ctx.find(identity, "down")
+      );
+      if (result) return result;
+    }
+    if ((mode === "up" || mode === "both") && this.parent) {
+      if (identity === this.parent.identity) return this.parent;
+      const result = this.parent.find(identity, "up");
+      if (result) return result;
+    }
+    return void 0;
   }
 }
 var context_default = Context;

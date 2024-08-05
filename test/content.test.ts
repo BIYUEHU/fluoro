@@ -18,7 +18,7 @@ describe('Context', () => {
 
   test('constructor initializes correctly', () => {
     expect(ctx.root).toBe(ctx)
-    expect(ctx.parent).toBeNull()
+    expect(ctx.parent).toBeUndefined()
     expect(ctx.get('events')).toBeInstanceOf(Events)
     expect(ctx.get('modules')).toBeInstanceOf(Modules)
   })
@@ -70,20 +70,21 @@ describe('Context', () => {
   })
 
   test('context children isolates', () => {
-    const ctx1 = ctx.extends(undefined, 'child1')
+    const ctx1 = ctx.extends('child1')
     const rootObj = {}
-    ctx.provide('customProp', rootObj)
-    ctx.inject('customProp')
     const child1Obj = {}
     ctx1.provide('testProp', child1Obj)
     ctx1.inject('testProp')
-    const ctx2 = ctx1.extends(undefined, 'child2')
+    const ctx2 = ctx.extends('child2')
+
+    ctx.provide('customProp', rootObj)
+    ctx.inject('customProp')
     const child2Obj = { testMethod() {} }
     ctx2.provide('testMethod', child2Obj)
     ctx2.mixin('testMethod', ['testMethod'])
     expect(ctx1.customProp).toBe(ctx.customProp)
     expect(ctx1.testProp).toBe(child1Obj)
-    // expect(ctx2.testProp).toBeUndefined()
+    expect(ctx2.testProp).toBeUndefined()
     expect(ctx.testProp).toBeUndefined()
     expect(ctx.get('testProp')).toBeUndefined()
     expect(ctx[Tokens.container].get('testProp')).toBeUndefined()
@@ -91,5 +92,20 @@ describe('Context', () => {
     expect(ctx2.testMethod).toBeInstanceOf(Function)
     expect(ctx1.testMethod).toBeUndefined()
     expect(ctx.testMethod).toBeUndefined()
+  })
+
+  test('content search method and context records', () => {
+    const ctxFa1 = ctx.extends('childFa1')
+    const ctxFa2 = ctx.extends('childFa2')
+    const ctxFa1_1 = ctxFa1.extends('childFa1_1')
+    expect(ctx.find('childFa1')?.identity).toBe(ctxFa1.identity)
+    expect(ctxFa1.find('childFa2')?.identity).toBeUndefined()
+    expect(ctxFa1.find('childFa1_1')?.identity).toBe(ctxFa1_1.identity)
+    expect(ctxFa1.find('childFa1_1', 'down')).toBe(ctxFa1_1)
+    expect(ctxFa1.find('childFa1_1', 'up')).toBeUndefined()
+    expect(ctxFa2.find('childFa1_1')).toBeUndefined()
+    expect(Array.from(ctx[Tokens.record])).toHaveLength(2)
+    expect(Array.from(ctxFa1[Tokens.record])).toHaveLength(1)
+    expect(Array.from(ctxFa2[Tokens.record])).toHaveLength(0)
   })
 })

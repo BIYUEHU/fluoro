@@ -6,7 +6,7 @@
  * @Copyright 2024 Hotaru. All rights reserved.
  * @License GPL-3.0
  * @Link https://github.com/kotorijs/kotori
- * @Date 2024/8/1 21:44:10
+ * @Date 2024/8/4 21:33:20
  */
 
 "use strict";
@@ -61,10 +61,7 @@ class Modules {
     this.ctx = ctx;
   }
   load(instance) {
-    const ctx = this.ctx.extends(
-      {},
-      !this.ctx.identity && typeof instance === "object" ? instance.name : this.ctx.identity
-    );
+    const ctx = this.ctx.extends((typeof instance === "object" ? instance.name : void 0) ?? this.ctx.identity);
     const injected = (arr) => {
       for (const identity of arr) {
         const serviceData = Array.from(ctx[import_tokens.Tokens.container]).find(

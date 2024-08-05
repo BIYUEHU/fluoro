@@ -1,4 +1,10 @@
-import { Modules, type ModuleExport, type Context, type Service } from '../src'
+import { Modules, type ModuleExport, Context, Service } from '../src'
+
+declare module '../src' {
+  interface Context {
+    testService: Service
+  }
+}
 
 describe('Modules', () => {
   let modules: Modules
@@ -65,5 +71,39 @@ describe('Modules', () => {
     expect(mockContext.on).toHaveBeenCalledTimes(2)
   })
 
-  test('complex module register', () => {})
+  test('complex module register', () => {
+    const ctx = new Context()
+    class TestService extends Service {
+      public constructor(ctx: Context) {
+        super(ctx, {}, 'testService')
+      }
+    }
+    const testService = new TestService(ctx)
+    ctx.service('testService', testService)
+    expect(ctx.identity).toBeUndefined()
+    expect(ctx.testService).toBeUndefined()
+    expect(ctx.get('testService')).toBeInstanceOf(Service)
+
+    const moduleConfig = {
+      test: 'test'
+    }
+    const mockModule: ModuleExport = {
+      default: jest.fn((ctx, config) => {
+        expect(config).toBe(moduleConfig)
+        expect(ctx.get('testService')).toBeDefined()
+        expect(ctx.identity).toBe('test')
+        expect(ctx.testService).toBeDefined()
+        expect(ctx.testService.ctx.identity).toBe(ctx.identity)
+      }),
+      main: jest.fn(),
+      inject: ['testService'],
+      config: moduleConfig,
+      name: 'test'
+    }
+    ctx.load(mockModule)
+    expect(mockModule.default).toHaveBeenCalled()
+    expect(mockModule.main).not.toHaveBeenCalled()
+    expect(ctx.identity).toBeUndefined()
+    expect(ctx.testService).toBeUndefined()
+  })
 })

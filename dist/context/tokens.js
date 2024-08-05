@@ -6,7 +6,7 @@
  * @Copyright 2024 Hotaru. All rights reserved.
  * @License GPL-3.0
  * @Link https://github.com/kotorijs/kotori
- * @Date 2024/8/1 21:44:10
+ * @Date 2024/8/4 21:33:20
  */
 
 "use strict";
@@ -35,8 +35,8 @@ __export(tokens_exports, {
 module.exports = __toCommonJS(tokens_exports);
 class Tokens {
   static container = Symbol.for("fluoro.context.container");
-  static table = Symbol.for("fluoro.context.table");
-  static containerKey = (prop) => Symbol.for(`fluoro.context.container.${prop}`);
+  static tracker = Symbol.for("fluoro.context.tracker");
+  static record = Symbol.for("fluoro.context.record");
 }
 var tokens_default = Tokens;
 // Annotate the CommonJS export names for ESM import in node:

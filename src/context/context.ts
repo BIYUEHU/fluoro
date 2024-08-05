@@ -3,7 +3,7 @@
  * @Blog: https://hotaru.icu
  * @Date: 2024-02-07 13:44:38
  * @LastEditors: Hotaru biyuehuya@gmail.com
- * @LastEditTime: 2024-08-01 18:15:09
+ * @LastEditTime: 2024-08-03 12:19:31
  */
 import Tokens from './tokens'
 import { Events, type EventsMapping } from './events'
@@ -14,29 +14,41 @@ interface obj {
   [propName: string | number | symbol]: any
 }
 
-interface ContextOrigin {
-  readonly [Tokens.container]: Map<string, obj>
-  readonly [Tokens.table]: Map<string, string[]>
-  root: Context
-  get(prop: string): obj | undefined
-  inject<T extends Keys>(prop: T): void
-  provide<T extends obj>(prop: string, value: T): void
-  mixin<K extends Keys>(prop: string, keys: K[]): void
-  extends<T extends obj>(meta?: T, identity?: string): Context
+/** Context keys */
+export type CommonKeys = keyof obj
+
+/** Context keys */
+export type ContextKeys = Exclude<keyof Context, keyof ContextOrigin>
+
+/** Context identity */
+export type IdentityType = string | symbol
+
+/** Context origin */
+export interface ContextOrigin {
+  readonly [Tokens.container]: Map<CommonKeys, obj>
+  readonly [Tokens.tracker]: Map<CommonKeys, CommonKeys | undefined>
+  readonly [Tokens.record]: Set<Context>
+  readonly identity?: IdentityType
+  readonly root: Context
+  readonly parent?: Context
+  get(prop: CommonKeys): obj | undefined
+  inject<T extends ContextKeys>(prop: T, force?: boolean): boolean
+  inject(prop: CommonKeys, force?: boolean): boolean
+  provide<T extends obj>(prop: CommonKeys, value: T): boolean
+  mixin<K extends ContextKeys>(prop: CommonKeys, keys: K[], force?: boolean): boolean
+  mixin(prop: CommonKeys, keys: CommonKeys[], force?: boolean): boolean
+  extends(identity?: IdentityType): Context
+  extends(_: Exclude<unknown, IdentityType>, identity?: IdentityType): Context
 }
 
-interface ContextImpl extends ContextOrigin {}
+const DEFAULT_EXTENDS_NAME = 'sub'
 
-declare module './context' {
-  interface Context {
-    identity?: string
-  }
+function isExistsContext<T>(value: T): value is T & { ctx: Context } {
+  return value instanceof Object && 'ctx' in value && value.ctx instanceof Context
 }
 
-type Keys = keyof Omit<Context, keyof ContextOrigin> & string
-
-const handler = <T>(value: T, ctx: Context): T => {
-  if (!value || typeof value !== 'object' || !((value as T & { ctx: unknown }).ctx instanceof Context)) return value
+function mountObject<T>(value: T, ctx: Context): T {
+  if (!isExistsContext(value)) return value
   return new Proxy(value, {
     get(target, prop, receiver) {
       if (prop === 'ctx') return ctx
@@ -45,87 +57,186 @@ const handler = <T>(value: T, ctx: Context): T => {
   })
 }
 
-const DEFAULT_EXTENDS_NAME = 'sub'
+// function createContainer(ctx: Context) {
+//   const container = new Map<CommonKeys, obj>()
+//   container.get = new Proxy(container.get, {
+//     apply(target, thisArg, argArray) {
+//       const value = Reflect.apply(target, thisArg, argArray) ?? ctx.parent?.[Tokens.container].get(argArray[0])
+//       return mountObject(value, ctx)
+//     }
+//   })
+//   container
+//   container
+//   return container as Pick<typeof container, 'get' | 'set' | 'forEach'>
+// }
 
-export class Context implements ContextImpl {
-  public readonly [Tokens.container]: Map<string, obj> = new Map()
+// function createTracker(ctx: Context) {
+//   const tracker = new Set<CommonKeys>()
+//   tracker.has = new Proxy(tracker.has, {
+//     apply(target, thisArg, argArray) {
+//       return Reflect.apply(target, thisArg, argArray) ?? ctx.parent?.[Tokens.tracker].has(argArray[0])
+//     }
+//   })
+//   return tracker
+// }
 
-  public readonly [Tokens.table]: Map<string, string[]> = new Map()
+/**
+ * Context.
+ */
+export class Context implements ContextOrigin {
+  /** Context container */
+  public readonly [Tokens.container]: Map<CommonKeys, obj> = new Map()
 
-  public root: Context
+  /** Context container */
+  public readonly [Tokens.tracker]: Map<CommonKeys, CommonKeys | undefined> = new Map()
 
-  public parent: Context | null = null
+  /** Context record */
+  public readonly [Tokens.record] = new Set<Context>()
 
-  public constructor(root?: Context) {
-    this.root = root || this
-    this.provide('events', root ? (root.get('events') as obj) : new Events<EventsMapping>())
+  /** Context identity */
+  public readonly identity?: IdentityType
+
+  /** Context root */
+  public readonly root: Context = this
+
+  /** Context parent */
+  public readonly parent?: Context
+
+  public constructor()
+  /**
+   * Context parent.
+   *
+   * @param parent - Context parent
+   * @param identity - Context identity
+   */
+  public constructor(parent: Context, identity: IdentityType)
+  public constructor(parent?: Context, identity?: IdentityType) {
+    this.root = parent ? parent.root : this
+    this.parent = parent
+    this.identity = identity
+    if (this.parent) {
+      Object.setPrototypeOf(this, this.parent)
+      this[Tokens.container] = new Map(this.parent[Tokens.container])
+      this[Tokens.tracker] = new Map(this.parent[Tokens.tracker])
+    }
+
+    for (const [key, serviceName] of this[Tokens.tracker]) {
+      /* Mixins update context */
+      if (serviceName !== undefined) {
+        const service = this.get(serviceName)
+        if (isExistsContext(service)) this.mixin(serviceName, [key], true)
+        continue
+      }
+      if (isExistsContext(this[key as ContextKeys])) this.inject(key, true)
+    }
+    /* Injected update context */
+    for (const obj of this[Tokens.container].values()) mountObject(obj, this)
+
+    this.provide('events', parent ? (parent.get('events') as obj) : new Events<EventsMapping>())
     this.mixin('events', ['emit', 'on', 'once', 'off', 'offAll'])
     this.provide('modules', new Modules(this))
     this.mixin('modules', ['load', 'unload', 'service'])
   }
 
-  public get<T = obj | undefined>(prop: string) {
-    return this[Tokens.container].get(prop) as T
+  /**
+   * Get context property.
+   *
+   * @param prop - Context property
+   * @returns Context property
+   */
+  public get<T = obj | undefined>(prop: CommonKeys) {
+    const value = this[Tokens.container].get(prop) as T
+    return value ? mountObject(value, this) : value
   }
 
-  public inject<T extends Keys>(prop: T) {
-    if (this[prop] && !this[Tokens.container].has(prop)) return
-    this[prop] = this.get(prop) as (typeof this)[T]
+  /**
+   * Inject context.
+   *
+   * @param prop - Context property
+   * @param force - Force inject
+   * @returns boolean
+   */
+  public inject<T extends ContextKeys>(prop: T, force?: boolean): boolean
+  public inject(prop: CommonKeys, force?: boolean): boolean
+  public inject(prop: CommonKeys, force = false) {
+    if (!force && (this[prop as ContextKeys] || !this[Tokens.container].has(prop))) return false
+    this[prop as ContextKeys] = mountObject(this.get(prop), this)
+    this[Tokens.tracker].set(prop, undefined)
+    return true
   }
 
-  public provide<T extends obj>(prop: string, value: T) {
-    if (this[Tokens.container].has(prop)) return
+  public provide<T extends obj>(prop: CommonKeys, value: T) {
+    if (this[Tokens.container].has(prop)) return false
     this[Tokens.container].set(prop, value)
+    return true
   }
 
-  public mixin<K extends Keys>(prop: string, keys: K[]) {
-    this[Tokens.table].set(prop, keys)
+  /**
+   * Mixin context.
+   *
+   * @param prop - Context property
+   * @param keys - Context keys
+   * @param force - Force mixin
+   * @returns boolean
+   */
+  public mixin<T extends ContextKeys>(prop: CommonKeys, keys: T[], force?: boolean): boolean
+  public mixin(prop: CommonKeys, keys: CommonKeys[], force?: boolean): boolean
+  public mixin(prop: CommonKeys, keys: CommonKeys[], force = false) {
     const instance = this.get(prop)
-    if (!instance) return
+    if (!instance) return false
 
-    this[Tokens.table].set(prop, keys)
+    let succeed = true
     for (const key of keys) {
-      if (this[key] || !instance[key]) continue
-      this[key] = instance[key] as this[K]
-      if (typeof this[key] === 'function') {
-        this[key] = (this[key] as () => unknown)?.bind(instance) as unknown as this[K]
+      if (!force && (this[key as ContextKeys] || !instance[key])) {
+        succeed = false
+        continue
       }
+      this[key as ContextKeys] = mountObject(
+        typeof instance[key] === 'function' ? instance[key]?.bind(instance) : instance[key],
+        this
+      )
+      this[Tokens.tracker].set(key, prop)
     }
+    return succeed
   }
 
-  public extends<T extends obj = object>(meta?: T, identity?: string) {
-    const metaHandle = meta ?? ({} as T)
-    // Clear function
-    for (const key of Object.keys(metaHandle)) if (typeof this[key as keyof this] === 'function') delete metaHandle[key]
-    // Set proxy
-    const ctx: Context = new Proxy(new Context(this.root), {
-      get: <T extends Context>(target: T, prop: keyof T) => {
-        if (prop === 'identity') return identity ?? this.identity ?? DEFAULT_EXTENDS_NAME
-        if (prop === 'parent') return this
-        if (target[prop]) return handler(target[prop], ctx)
+  /**
+   * Extends context.
+   *
+   * @param identity - Context identity
+   * @returns Context
+   */
+  public extends(identity?: IdentityType): Context
+  public extends(_: Exclude<unknown, IdentityType>, identity?: IdentityType): Context
+  public extends(_: unknown, arg2?: IdentityType) {
+    const identity =
+      (typeof _ === 'string' || typeof _ === 'symbol' ? _ : arg2) ?? this.identity ?? DEFAULT_EXTENDS_NAME
+    const childCtx = new Context(this, identity)
+    this[Tokens.record].add(childCtx)
+    return childCtx
+  }
 
-        let value: unknown
-        this[Tokens.table].forEach((keys, key) => {
-          if (value || (typeof prop === 'string' && !keys.includes(prop))) return
-          const instance = ctx[Tokens.container].get(key)
-          if (!instance) return
-          value = instance[prop]
-          if (typeof value === 'function') value = value.bind(instance)
-        })
-
-        if (value !== undefined) return value
-        if (metaHandle[prop]) return handler(metaHandle[prop], ctx)
-        return handler(this[prop as keyof this], ctx)
-      }
-    })
-    // Set table
-    this[Tokens.table].forEach((value, key) => ctx[Tokens.table].set(key, value))
-    // Set container
-    this[Tokens.container].forEach((value, key) => {
-      if (!value.ctx) return ctx[Tokens.container].set(key, value)
-      return ctx[Tokens.container].set(key, handler(value, ctx))
-    })
-    return ctx
+  /**
+   * Find context by identity.
+   *
+   * @param identity - Context identity
+   * @param mode - Search mode
+   * @returns Context
+   */
+  public find(identity: IdentityType, mode: 'up' | 'down' | 'both' = 'both'): Context | undefined {
+    if (identity === this.identity) return this
+    if (mode === 'down' || mode === 'both') {
+      const result = Array.from(this[Tokens.record]).find(
+        (ctx) => identity === ctx.identity || ctx.find(identity, 'down')
+      )
+      if (result) return result
+    }
+    if ((mode === 'up' || mode === 'both') && this.parent) {
+      if (identity === this.parent.identity) return this.parent
+      const result = this.parent.find(identity, 'up')
+      if (result) return result
+    }
+    return undefined
   }
 }
 
