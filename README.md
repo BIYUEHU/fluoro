@@ -11,8 +11,11 @@
 
 <!-- markdownlint-enable -->
 
-It refers to thoughts which are Aspect-Oriented Programming,
-Inversion of Control and Dependency Injection.
+It refers to thoughts which are Aspect-Oriented Programming, Inversion of Control and Dependency Injection.
+
+## ❓ Why is `Fluoro`?
+
+**Fluoro**, its original word is `Fluorine` (F₂), it is the strongest monatomic oxidant in nature, except for some inert gases, it can react with almost all elements, and its compounds are extremely rich and diverse and have stability. Take this name, hoping Fluoro has strong ability, thus build various diversified frameworks and provide strong underlying support.
 
 ## 🛠️ Class & Interface
 
@@ -151,9 +154,15 @@ export function main(ctx: Context, cfg: Tsu.infer<typeof config>) {
 }
 ```
 
-## 📜 Reference
+## 📜 Applications
 
-**Kotori Bot** is a chatbot framework,its core depends on Fluoro,
+**Kotori Bot** is a crossing-platform chatbot framework,its core (`@kotori-bot/core`) depends on Fluoro,
 and is a fine reference to help you build your own framework.
 
 - [Kotori Docs](https://kotori.js.org/)
+
+**Misakura** is a galgame(Visual novel games) made framework based on tauri, PIXI.js (solid.js) and Fluoro.
+
+- [Misakura Docs](https://misakura.js.org/)
+
+> Welcome you to join us!
