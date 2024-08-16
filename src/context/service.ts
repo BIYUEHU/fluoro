@@ -7,14 +7,14 @@ interface ServiceImpl<T extends object = object> {
   stop(): void
 }
 
-export abstract class Service<T extends object = object> implements ServiceImpl<T> {
-  public readonly ctx: Context
+export abstract class Service<T extends object = object, C extends Context = Context> implements ServiceImpl<T> {
+  public readonly ctx: C
 
   public readonly config: T
 
   public readonly identity: string
 
-  public constructor(ctx: Context, config: T, identity: string) {
+  public constructor(ctx: C, config: T, identity: string) {
     this.ctx = ctx
     this.config = config
     this.identity = identity

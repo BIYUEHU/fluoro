@@ -3,7 +3,7 @@
  * @Blog: https://hotaru.icu
  * @Date: 2024-02-07 13:44:38
  * @LastEditors: Hotaru biyuehuya@gmail.com
- * @LastEditTime: 2024-08-03 12:19:31
+ * @LastEditTime: 2024-08-16 10:53:09
  */
 import Tokens from './tokens'
 import { Events, type EventsMapping } from './events'
@@ -27,18 +27,18 @@ export type IdentityType = string | symbol
 export interface ContextOrigin {
   readonly [Tokens.container]: Map<CommonKeys, obj>
   readonly [Tokens.tracker]: Map<CommonKeys, CommonKeys | undefined>
-  readonly [Tokens.record]: Set<Context>
+  readonly [Tokens.record]: Set<this>
   readonly identity?: IdentityType
-  readonly root: Context
-  readonly parent?: Context
+  readonly root: this
+  readonly parent?: this
   get(prop: CommonKeys): obj | undefined
   inject<T extends ContextKeys>(prop: T, force?: boolean): boolean
   inject(prop: CommonKeys, force?: boolean): boolean
   provide<T extends obj>(prop: CommonKeys, value: T): boolean
   mixin<K extends ContextKeys>(prop: CommonKeys, keys: K[], force?: boolean): boolean
   mixin(prop: CommonKeys, keys: CommonKeys[], force?: boolean): boolean
-  extends(identity?: IdentityType): Context
-  extends(_: Exclude<unknown, IdentityType>, identity?: IdentityType): Context
+  extends(identity?: IdentityType): this
+  extends(_: Exclude<unknown, IdentityType>, identity?: IdentityType): this
 }
 
 const DEFAULT_EXTENDS_NAME = 'sub'
@@ -47,7 +47,7 @@ function isExistsContext<T>(value: T): value is T & { ctx: Context } {
   return value instanceof Object && 'ctx' in value && value.ctx instanceof Context
 }
 
-function mountObject<T>(value: T, ctx: Context): T {
+function mountObject<T, C extends Context>(value: T, ctx: C): T {
   if (!isExistsContext(value)) return value
   return new Proxy(value, {
     get(target, prop, receiver) {
@@ -80,10 +80,80 @@ function mountObject<T>(value: T, ctx: Context): T {
 //   return tracker
 // }
 
+export interface Context<E = EventsMapping> {
+  /**
+   * Emits an event with the given type and data.
+   *
+   * @template T - The type of the event
+   * @param type - The event type to emit
+   * @param data - The data to pass to the event listeners
+   */
+  emit: Events<E>['emit']
+  /**
+   * Emits an event and waits for all listeners to complete asynchronously.
+   *
+   * @template T - The type of the event
+   * @param type - The event type to emit
+   * @param data - The data to pass to the event listeners
+   * @returns A promise that resolves when all listeners have completed
+   */
+  parallel: Events<E>['parallel']
+  /**
+   * Adds an event listener for the specified event type.
+   *
+   * @template T - The type of the event
+   * @param type - The event type to listen for
+   * @param callback - The callback function to be called when the event is emitted
+   */
+  on: Events<E>['on']
+  /**
+   * Adds a one-time event listener for the specified event type.
+   *
+   * @template T - The type of the event
+   * @param type - The event type to listen for
+   * @param callback - The callback function to be called when the event is emitted
+   */
+  once: Events<E>['once']
+  /**
+   * Removes an event listener for the specified event type.
+   *
+   * @template T - The type of the event
+   * @param type - The event type to remove the listener from
+   * @param callback - The callback function to be removed
+   */
+  off: Events<E>['off']
+  /**
+   * Removes all event listeners for the specified event type.
+   *
+   * @template - The type of the event
+   * @param type - The event type to remove all listeners from
+   */
+  offAll: Events<E>['offAll']
+  /**
+   * Loads a module.
+   *
+   * @param instance - The module to load
+   */
+  load: Modules<this>['load']
+  /**
+   * Unloads a module.
+   *
+   * @param instance - The module to unload
+   */
+  unload: Modules<this>['unload']
+  /**
+   * Loads a service.
+   *
+   * @param instance - The service to load
+   */
+  service: Modules<this>['service']
+}
+
 /**
  * Context.
  */
-export class Context implements ContextOrigin {
+// biome-ignore lint:
+export class Context<E = EventsMapping> implements ContextOrigin {
   /** Context container */
   public readonly [Tokens.container]: Map<CommonKeys, obj> = new Map()
 
@@ -91,16 +161,16 @@ export class Context implements ContextOrigin {
   public readonly [Tokens.tracker]: Map<CommonKeys, CommonKeys | undefined> = new Map()
 
   /** Context record */
-  public readonly [Tokens.record] = new Set<Context>()
+  public readonly [Tokens.record] = new Set<this>()
 
   /** Context identity */
   public readonly identity?: IdentityType
 
   /** Context root */
-  public readonly root: Context = this
+  public readonly root: this = this
 
   /** Context parent */
-  public readonly parent?: Context
+  public readonly parent?: this
 
   public constructor()
   /**
@@ -111,8 +181,8 @@ export class Context implements ContextOrigin {
    */
   public constructor(parent: Context, identity: IdentityType)
   public constructor(parent?: Context, identity?: IdentityType) {
-    this.root = parent ? parent.root : this
-    this.parent = parent
+    this.root = parent ? (parent.root as this) : this
+    this.parent = parent as this
     this.identity = identity
     if (this.parent) {
       Object.setPrototypeOf(this, this.parent)
@@ -206,12 +276,12 @@ export class Context implements ContextOrigin {
    * @param identity - Context identity
    * @returns Context
    */
-  public extends(identity?: IdentityType): Context
-  public extends(_: Exclude<unknown, IdentityType>, identity?: IdentityType): Context
+  public extends(identity?: IdentityType): this
+  public extends(_: Exclude<unknown, IdentityType>, identity?: IdentityType): this
   public extends(_: unknown, arg2?: IdentityType) {
     const identity =
       (typeof _ === 'string' || typeof _ === 'symbol' ? _ : arg2) ?? this.identity ?? DEFAULT_EXTENDS_NAME
-    const childCtx = new Context(this, identity)
+    const childCtx = new Context(this, identity) as this
     this[Tokens.record].add(childCtx)
     return childCtx
   }

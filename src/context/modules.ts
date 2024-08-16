@@ -3,8 +3,9 @@ import { Tokens } from './tokens'
 import { Service } from './service'
 
 // biome-ignore lint:
-type ModuleInstanceClass = new (ctx: Context, config: ModuleConfig) => void
-type ModuleInstanceFunction = (ctx: Context, config: ModuleConfig) => void
+type ModuleInstanceClass = new (ctx: any, config: ModuleConfig) => unknown
+// biome-ignore lint:
+type ModuleInstanceFunction = (ctx: any, config: ModuleConfig) => void
 
 /** Represents the structure of a module export */
 export interface ModuleExport {
@@ -42,29 +43,6 @@ declare module './events' {
   }
 }
 
-declare module './context' {
-  interface Context {
-    /**
-     * Loads a module.
-     *
-     * @param instance - The module to load
-     */
-    load: Modules['load']
-    /**
-     * Unloads a module.
-     *
-     * @param instance - The module to unload
-     */
-    unload: Modules['unload']
-    /**
-     * Loads a service.
-     *
-     * @param instance - The service to load
-     */
-    service: Modules['service']
-  }
-}
-
 interface EventDataModule {
   instance: ModuleExport /* | string */ | ModuleInstanceFunction | ModuleInstanceClass
 }
@@ -96,10 +74,10 @@ function isClass(obj: unknown, strict = true): obj is new (...args: unknown[]) =
 /**
  * The module system.
  */
-export class Modules {
-  private readonly ctx: Context
+export class Modules<C extends Context = Context> {
+  private readonly ctx: C
 
-  public constructor(ctx: Context) {
+  public constructor(ctx: C) {
     this.ctx = ctx
   }
 
@@ -145,10 +123,10 @@ export class Modules {
     this.ctx.emit('dispose_module', { instance })
   }
 
-  public service(name: string, instance: Service) {
+  public service<T extends object>(name: string, instance: Service<T>) {
     this.ctx.provide(name, instance)
-    this.ctx.on('ready', () => (this.ctx.get(name) as Service).start())
-    this.ctx.on('dispose', () => (this.ctx.get(name) as Service).stop())
+    this.ctx.on('ready', () => (this.ctx.get(name) as Service<C>).start())
+    this.ctx.on('dispose', () => (this.ctx.get(name) as Service<C>).stop())
   }
 }
 
