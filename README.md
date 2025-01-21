@@ -34,33 +34,33 @@ declare class Server {}
 
 declare interface Context {
   config: typeof config;
-  display: (typeof demo)['display'];
+  display: (typeof demo)["display"];
 }
 
 const demo = {
-  name: 'hello, kotori!',
+  name: "hello, kotori!",
   display() {
     return this.name;
-  }
+  },
 };
 
 const ctx = new Context();
 
-ctx.provide('config', {
+ctx.provide("config", {
   port: 3000,
-  host: 'localhost'
+  host: "localhost",
 });
-ctx.provide('server', new Server());
+ctx.provide("server", new Server());
 
-const config = ctx.get('config'); // { port: 3000 }
-const server = ctx.get('server'); // Server {}
+const config = ctx.get("config"); // { port: 3000 }
+const server = ctx.get("server"); // Server {}
 
 ctx.config.port; // TypeError: Cannot read properties of undefined (reading 'port')
-ctx.inject('config');
+ctx.inject("config");
 ctx.config.port; // 3000
 
 ctx.display(); // Uncaught TypeError: ctx.display is not a function
-ctx.mixin('demo', ['display']);
+ctx.mixin("demo", ["display"]);
 ctx.display(); // hello, kotori!
 ```
 
@@ -98,6 +98,7 @@ ctxChild2.meta; //'some meta data'
 ctx.identity; // undefined
 ctxChild1.identity; // 'sub'
 ctxChild2.identity; // 'child2'
+
 ```
 
 ### Modules

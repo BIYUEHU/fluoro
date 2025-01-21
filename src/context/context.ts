@@ -8,6 +8,7 @@
 import Tokens from './tokens'
 import { Events, type EventsMapping } from './events'
 import Modules from './modules'
+import { Service } from '.'
 
 interface obj {
   // biome-ignore lint:
@@ -51,8 +52,7 @@ function mountObject<T, C extends Context>(value: T, ctx: C): T {
   if (!isExistsContext(value)) return value
   return new Proxy(value, {
     get(target, prop, receiver) {
-      if (prop === 'ctx') return ctx
-      return Reflect.get(target, prop, receiver)
+      return prop !== 'ctx' || (target instanceof Service && !ctx.identity) ? Reflect.get(target, prop, receiver) : ctx
     }
   })
 }

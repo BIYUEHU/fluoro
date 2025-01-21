@@ -14,10 +14,13 @@ export abstract class Service<T extends object = object, C extends Context = Con
 
   public readonly identity: string
 
-  public constructor(ctx: C, config: T, identity: string) {
+  public readonly name: string
+
+  public constructor(ctx: C, config: T, name: string) {
     this.ctx = ctx
     this.config = config
-    this.identity = identity
+    this.identity = name
+    this.name = name
   }
 
   public start(): void {}

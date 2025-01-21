@@ -1,12 +1,12 @@
 {
   "name": "fluoro",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "A Meta-Framework",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc"
   },
-  "license": "GPL-3.0",
+  "license": "BAN-ZHINESE-USING",
   "author": "Hotaru <biyuehuya@gmail.com>",
   "keywords": [
     "meta-framework",
@@ -17,7 +17,11 @@
     "dependency-injection",
     "inversion-of-control"
   ],
-  "files": ["dist", "LICENSE", "README.md"],
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
   "bugs": {
     "url": "https://github.com/biyuehu/fluoro/issues"
   },
